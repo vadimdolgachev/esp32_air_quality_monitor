@@ -1,7 +1,3 @@
-#include <iostream>
-#include <thread>
-#include <sstream>
-
 #include <Arduino.h>
 
 #include <ArduinoJson.h>
@@ -121,6 +117,6 @@ void sensorsHandler(AsyncWebServerRequest *request)
   root["is_co2_sensor_pre_heating"] = isCo2SensorPreHeating;
   root["co2_ppm"] = co2Ppm;
   root["co_ppm"] = coPppm;
-  serializeJsonPretty(root, *response);
+  serializeJson(root, *response);
   request->send(response);
 }
