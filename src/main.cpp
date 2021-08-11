@@ -7,8 +7,6 @@
 #include <ArduinoJson.h>
 
 #include <WiFi.h>
-#include <AsyncTCP.h>
-#include <AsyncJson.h>
 #include <ESPAsyncWebServer.h>
 
 #include <DHTesp.h>
@@ -49,7 +47,7 @@ void sensorsHandler(AsyncWebServerRequest *request);
 void setup()
 {
   Serial.begin(115200);
-  WiFi.mode(WIFI_STA);
+  Serial.println("setup running");
 
   dhtSensor.setup(DHT_PIN, DHTesp::DHT11);
 
@@ -61,30 +59,31 @@ void setup()
   mq7.setB(-1.518);
   mq7.init();
 
-  Serial.println("calibrating mq7");
   float calcR0 = 0;
-  for (int i = 1; i <= 10; i++)
+  const int calibrateCount = 10;
+  for (int i = 1; i <= calibrateCount; i++)
   {
     mq7.update();
     calcR0 += mq7.calibrate(27.5);
-    Serial.print(".");
   }
-  mq7.setR0(calcR0 / 10);
+  mq7.setR0(calcR0 / calibrateCount);
   mq7.serialDebug(true);
 
+  WiFi.mode(WIFI_STA);
   WiFi.begin(SSID_ENV_VAR, PASSPHRASE_ENV_VAR);
-  if (WiFi.waitForConnectResult() != WL_CONNECTED)
+  Serial.printf("connection to %s\n", SSID_ENV_VAR);
+  if (WiFi.waitForConnectResult() == WL_CONNECTED)
+  {
+    Serial.printf("connection successful. ip address=%s\n", WiFi.localIP().toString().c_str());
+    server.on("/", HTTP_GET, sensorsHandler);
+    server.onNotFound([](AsyncWebServerRequest *request)
+                      { request->send(404, "text/plain", "Not found"); });
+    server.begin();
+  }
+  else
   {
     Serial.printf("error connection to %s\n", SSID_ENV_VAR);
-    return;
   }
-
-  Serial.printf("ip address=%s\n", WiFi.localIP().toString().c_str());
-
-  server.on("/", HTTP_GET, sensorsHandler);
-  server.onNotFound([](AsyncWebServerRequest *request)
-                    { request->send(404, "text/plain", "Not found"); });
-  server.begin();
 
   Serial.println("setup done");
 }
@@ -96,13 +95,17 @@ void loop()
   isCo2SensorReady = mhz.isReady();
   isCo2SensorPreHeating = mhz.isPreHeating();
   co2Ppm = mhz.readCO2PWM();
-  Serial.printf("co2Ppm=%d\n", co2Ppm);
-  Serial.printf("isCo2SensorReady=%d\n", isCo2SensorReady);
-  Serial.printf("isCo2SensorPreHeating=%d\n", isCo2SensorPreHeating);
 
   mq7.update();
   coPppm = mq7.readSensor();
-  Serial.printf("coPpm=%f\n", coPppm);
+
+  Serial.printf("temperature=%f,humidity=%f,co2Ppm=%d,isCo2SensorReady=%d,isCo2SensorPreHeating=%d,coPppm=%f\n",
+                tempAndHumidity.temperature,
+                tempAndHumidity.humidity,
+                co2Ppm,
+                isCo2SensorReady,
+                isCo2SensorPreHeating,
+                coPppm);
 
   delay(SENSORS_UPDATE_INTERVAL_MS);
 }
