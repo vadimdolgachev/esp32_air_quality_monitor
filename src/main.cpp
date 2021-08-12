@@ -1,3 +1,5 @@
+#include <map>
+
 #include <Arduino.h>
 
 #include <ArduinoJson.h>
@@ -34,11 +36,24 @@ int co2Ppm = 0;
 
 constexpr int MQ7_PIN = 34;
 MQUnifiedsensor mq7("ESP-32", 3.3, 12, MQ7_PIN, "MQ-7");
-float coPppm = 0;
+float coPpm = 0;
 
 AsyncWebServer server(80);
 
 void sensorsHandler(AsyncWebServerRequest *request);
+
+// https://www.kane.co.uk/knowledge-centre/what-are-safe-levels-of-co-and-co2-in-rooms
+const std::map<int, std::string> co2RoomLevels = {
+    {400, "Normal background concentration in outdoor ambient air"},
+    {1000, "Concentrations typical of occupied indoor spaces with good air exchange"},
+    {2000, "Complaints of drowsiness and poor air"},
+    {5000, "Headaches, sleepiness and stagnant, stale, stuffy air. Poor concentration, loss of attention, increased heart rate and slight nausea may also be present"},
+    {40000, "Exposure may lead to serious oxygen deprivation resulting in permanent brain damage, coma, even death"}};
+const std::map<int, std::string> coRoomLevels = {
+    {9, "CO Max prolonged exposure (ASHRAE standard)"},
+    {35, "CO Max exposure for 8 hour work day (OSHA)"},
+    {800, "CO Death within 2 to 3 hours"},
+    {12000, "CO Death within 1 to 3 minutes "}};
 
 void setup()
 {
@@ -93,15 +108,15 @@ void loop()
   co2Ppm = mhz.readCO2PWM();
 
   mq7.update();
-  coPppm = mq7.readSensor();
+  coPpm = mq7.readSensor();
 
-  Serial.printf("temperature=%f,humidity=%f,co2Ppm=%d,isCo2SensorReady=%d,isCo2SensorPreHeating=%d,coPppm=%f\n",
+  Serial.printf("temperature=%f,humidity=%f,co2Ppm=%d,isCo2SensorReady=%d,isCo2SensorPreHeating=%d,coPpm=%f\n",
                 tempAndHumidity.temperature,
                 tempAndHumidity.humidity,
                 co2Ppm,
                 isCo2SensorReady,
                 isCo2SensorPreHeating,
-                coPppm);
+                coPpm);
 
   delay(SENSORS_UPDATE_INTERVAL_MS);
 }
@@ -115,8 +130,21 @@ void sensorsHandler(AsyncWebServerRequest *request)
   root["humidity_prc"] = tempAndHumidity.humidity;
   root["is_co2_sensor_ready"] = isCo2SensorReady;
   root["is_co2_sensor_pre_heating"] = isCo2SensorPreHeating;
+
   root["co2_ppm"] = co2Ppm;
-  root["co_ppm"] = coPppm;
+  auto it = co2RoomLevels.lower_bound(co2Ppm);
+  if (it != std::end(co2RoomLevels))
+  {
+    root["co2_meaning"] = it->second;
+  }
+  
+  root["co_ppm"] = coPpm;
+  it = coRoomLevels.lower_bound(std::round(coPpm));
+  if (it != std::end(co2RoomLevels))
+  {
+    root["co_meaning"] = it->second;
+  }
+
   serializeJson(root, *response);
   request->send(response);
 }
