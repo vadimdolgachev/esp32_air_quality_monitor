@@ -53,7 +53,7 @@ const std::map<int, std::string> coRoomLevels = {
     {9, "CO Max prolonged exposure (ASHRAE standard)"},
     {35, "CO Max exposure for 8 hour work day (OSHA)"},
     {800, "CO Death within 2 to 3 hours"},
-    {12000, "CO Death within 1 to 3 minutes "}};
+    {12000, "CO Death within 1 to 3 minutes"}};
 
 void setup()
 {
@@ -140,7 +140,7 @@ void sensorsHandler(AsyncWebServerRequest *request)
   
   root["co_ppm"] = coPpm;
   it = coRoomLevels.lower_bound(std::round(coPpm));
-  if (it != std::end(co2RoomLevels))
+  if (it != std::end(coRoomLevels))
   {
     root["co_meaning"] = it->second;
   }
